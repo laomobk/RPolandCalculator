@@ -11,7 +11,8 @@ operations = {
         'sin' : 1,
         'cos' : 1,
         'tan' : 1,
-        'is' : 1,
+        'is' : 0,
+        'print' : 0,
         '*' : 2,
         '/' : 2,
         '^' : 3,
@@ -21,6 +22,17 @@ operations = {
     }
 
 localv = []
+
+SYS_EXIT = 1
+
+if not SYS_EXIT:
+    sys.exit = lambda x:0
+
+
+_WELCOME_STR = '''PyCalculator v1.0a  (11 nov, 2019 release)'''
+
+class CalcException(Exception):
+    pass
 
 class RPolandExpr:
     def __init__(self, tok_list :list, plain_list :list):
@@ -103,7 +115,7 @@ def check_func(tok_value):
 
 
 def check_cmd(tok_value):
-    return check_func(tok_value) or (tok_value in ('is'))
+    return check_func(tok_value) or (tok_value in ('is', 'print'))
 
 
 def unpack_variable(v :Variable):
@@ -117,6 +129,12 @@ def search_variable(vname :str):
     for v in localv:
         if v.name == vname:
             return v
+
+
+def check_variable(v :Variable) -> Variable:
+    if v.value is None:
+        raise CalcException('E: variable \'%s\' is not defined.' % v.name)
+    return v
 
 
 def run_rpoland(pstr :list):
@@ -138,10 +156,11 @@ def run_rpoland(pstr :list):
                     v = search_variable(tok.value)
                     stack.append(v)
                 else:
-                    stack.append(Variable('<unsigned>', tok.value))
+                    stack.append(Variable(tok.value, None))
 
             elif tok.value in operations and not check_cmd(tok.value):
-                print(stack)
+                b = unpack_variable(check_variable(stack.pop()))
+                a = unpack_variable(check_variable(stack.pop()))
                 res = {
                     '+' : lambda b, a : a + b,
                     '-' : lambda b, a : a - b,
@@ -149,56 +168,56 @@ def run_rpoland(pstr :list):
                     '/' : lambda b, a : a / b,
                     '^' : lambda b, a : a ** b,
                     '%' : lambda b, a : a % b,
-                    }.get(tok.value)(unpack_variable(stack.pop()), 
-                            unpack_variable(stack.pop().value))
+                    }.get(tok.value)(b, a)
 
                 stack.append(Variable('<number>', res, True))
 
             elif check_func(tok.value):
+                x = unpack_variable(check_variable(stack.pop()))
                 res = {
                        'cos' : lambda x : math.cos(x),
                        'sin' : lambda x : math.sin(x),
                        'tan' : lambda x : math.tan(x),
-                      }.get(tok.value)(stack.pop().value)
+                      }.get(tok.value)(x)
 
                 stack.append(Variable('<number>', res, True))
 
             elif check_cmd(tok.value):
                 if tok.value == 'is':
                     if len(pstr) - i != 1:
-                        print('E: syntax error')
-                        sys.exit(1)
+                        raise CalcException('E: syntax error')
                     value = stack.pop()
                     name = stack.pop()
                     
                     if not name.isnumber:
-                        name = name.value
+                        name = name.name
                     else:
-                        print('E: Cannot define a number')
-                        sys.exit(1)
+                        raise CalcException('E: Cannot define a number')
                     
                     s = search_variable(name)
                     if s:
                         s.value = value
                     else:
-                        localv.append(Variable(name.value))
+                        localv.append(Variable(name, value))
 
                     stack.append(value)
 
-            elif tok.ttype == LAP_IDENTIFIER:
-                print('E: not supported variable!')
-                sys.exit(1)
+                if tok.value == 'print':
+                    l = [unpack_variable(stack.pop()) for _ in range(len(stack))][::-1]
+                    print(*l)
+                    stack.append(Variable('<number>', 0, True))
 
             i += 1
     except IndexError:
-        print('E:Illegal expression!')
-        sys.exit(1)
+        raise CalcException('E:Illegal expression!')
 
-    return stack[0]
+    return stack[0].value
 
 
 if __name__ == '__main__':
     import readline
+
+    print(_WELCOME_STR)
 
     while True:
         text = input('> ')
@@ -207,7 +226,9 @@ if __name__ == '__main__':
         ts = lex.lex()
 
         p = make_rpoland(ts)
-
-        print('RPOLAND= ', ' '.join(p.plain_list))
-        print('RESULT = ', run_rpoland(p.tok_list))
-
+        
+        try:
+            #print('RPOLAND= ', ' '.join(p.plain_list))
+            print('<', run_rpoland(p.tok_list))
+        except CalcException as e:
+            print(str(e))
