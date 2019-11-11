@@ -4,6 +4,8 @@ from tokentype import *
 import math
 import sys
 
+__author__ = 'LaomoBK'
+
 operations = {
         '+' : 1,
         '-' : 1,
@@ -15,7 +17,9 @@ operations = {
         'ln' : 1,
         'lg' : 1,
         'is' : 0,
+        'is_const' : 0,
         'print' : 0,
+        'input' : 0,
         '*' : 2,
         '/' : 2,
         '^' : 3,
@@ -24,15 +28,17 @@ operations = {
         '<null>' : -726
     }
 
-localv = []
 
 SYS_EXIT = 1
 
 if not SYS_EXIT:
     sys.exit = lambda x:0
 
+_VERSION = '1.2'
+_WELCOME_STR = '''RPolandCalculator %s  (12 nov, 2019 release)''' % _VERSION
 
-_WELCOME_STR = '''PyCalculator v1.1  (11 nov, 2019 release)'''
+_funcs = ('cos', 'sin', 'tan', 'ln', 'lg')
+_cmds = ('is', 'print', 'log', 'is_const', 'input')
 
 class CalcException(Exception):
     pass
@@ -53,8 +59,15 @@ class Variable:
     def __str__(self):
         return '<variable \'%s\' value= %s >' % (self.name, self.value)
 
-
     __repr__ = __str__
+
+
+localv = [
+         Variable('e', math.e, True),
+         Variable('__version__', _VERSION, True),
+         Variable('pi', math.pi, True),
+         Variable('π', math.pi, True)
+        ]
 
 
 def make_rpoland(stream :TokenStream) -> RPolandExpr:
@@ -117,11 +130,10 @@ def make_rpoland(stream :TokenStream) -> RPolandExpr:
 
 
 def check_func(tok_value):
-    return tok_value in ('cos', 'sin', 'tan', 'ln', 'lg')
-
+    return tok_value in _funcs
 
 def check_cmd(tok_value):
-    return check_func(tok_value) or (tok_value in ('is', 'print', 'log'))
+    return check_func(tok_value) or (tok_value in _cmds)
 
 
 def unpack_variable(v :Variable):
@@ -141,6 +153,36 @@ def check_variable(v :Variable) -> Variable:
     if v.value is None:
         raise CalcException('E: variable \'%s\' is not defined.' % v.name)
     return v
+
+
+def store_var(stack :list, isconst=False):
+    global localv
+
+    value = stack.pop()
+    name = stack.pop()
+    
+    if not name.isconst:
+        name = name.name
+    else:
+        raise CalcException('E: Cannot define a constant')
+
+    s = search_variable(name)
+    if s:
+        s.value = value
+    else:
+        localv.append(Variable(name, value, isconst))
+    
+    stack.append(value)
+
+
+def just_store_var(name :str, value :Variable):
+    global localv
+
+    s = search_variable(name)
+    if s:
+        s.value = value
+    else:
+        localv.append(Variable(name, value))
 
 
 def run_rpoland(pstr :list):
@@ -196,35 +238,37 @@ def run_rpoland(pstr :list):
 
             elif check_cmd(tok.value):
                 if tok.value == 'is':
-                    if len(pstr) - i != 1:
-                        raise CalcException('E: syntax error')
-                    value = stack.pop()
-                    name = stack.pop()
-                    
-                    if not name.isconst:
-                        name = name.name
-                    else:
-                        raise CalcException('E: Cannot define a constant')
-                    
-                    s = search_variable(name)
-                    if s:
-                        s.value = value
-                    else:
-                        localv.append(Variable(name, value))
+                    store_var(stack)
 
-                    stack.append(value)
-
-                if tok.value == 'print':
+                elif tok.value == 'print':
                     l = [unpack_variable(stack.pop()) for _ in range(len(stack))][::-1]
                     print(*l)
                     stack.append(Variable('<number>', 0, True))
 
-
-                if tok.value == 'log':
+                elif tok.value == 'log':
                     l = [unpack_variable(check_variable(stack.pop())) for _ in range(2)][::-1]
                     y = math.log(*l)
 
-                    stack.append(Variable('<number>', float(y), True)) 
+                    stack.append(Variable('<number>', float(y), True))
+
+                elif tok.value == 'is_const':
+                    store_var(stack, True)
+
+                elif tok.value == 'input':
+                    msg = stack.pop()
+
+                    v = input(unpack_variable(check_variable(msg)))
+                    
+                    try:
+                        v = float(v)  # if it can.
+                    except:
+                        pass
+
+                    v = Variable('<input>', v, True)
+
+                    #stack.append(Variable('<number>', 0, True))
+                    stack.append(v)
+
             i += 1
     except IndexError:
         raise CalcException('E:Illegal expression!')
@@ -234,21 +278,31 @@ def run_rpoland(pstr :list):
     return stack[0].value
 
 
+def run_as_interactive():
+    import os
+    if os.name != 'nt':
+        import readline
+
+    print(_WELCOME_STR, '\n')
+    
+    try:
+        while True:
+            text = input('> ')
+
+            lex = Lex('.$str:%s\n' % text, True)
+            ts = lex.lex()
+
+            p = make_rpoland(ts)
+            
+            try:
+                #print('RPOLAND= ', ' '.join(p.plain_list))
+                rtn = run_rpoland(p.tok_list)
+                if rtn : print('<', rtn)
+            except CalcException as e:
+                print(str(e))
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+
 if __name__ == '__main__':
-    import readline
-
-    print(_WELCOME_STR)
-
-    while True:
-        text = input('> ')
-
-        lex = Lex('.$str:%s\n' % text, True)
-        ts = lex.lex()
-
-        p = make_rpoland(ts)
-        
-        try:
-            #print('RPOLAND= ', ' '.join(p.plain_list))
-            print('<', run_rpoland(p.tok_list))
-        except CalcException as e:
-            print(str(e))
+    run_as_interactive()    
