@@ -1,4 +1,2 @@
-# PyCalculator
-## Python 二元表达式计算器
-
-
+# RPolandCalculator
+## 基于逆波兰表达式的计算器
