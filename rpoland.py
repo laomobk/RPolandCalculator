@@ -32,7 +32,7 @@ if not SYS_EXIT:
     sys.exit = lambda x:0
 
 
-_WELCOME_STR = '''PyCalculator v1.0a  (11 nov, 2019 release)'''
+_WELCOME_STR = '''PyCalculator v1.1  (11 nov, 2019 release)'''
 
 class CalcException(Exception):
     pass
