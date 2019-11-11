@@ -11,6 +11,9 @@ operations = {
         'sin' : 1,
         'cos' : 1,
         'tan' : 1,
+        'log' : 1,
+        'ln' : 1,
+        'lg' : 1,
         'is' : 0,
         'print' : 0,
         '*' : 2,
@@ -41,10 +44,10 @@ class RPolandExpr:
 
 
 class Variable:
-    def __init__(self, name :str, value, isnumber=False):
+    def __init__(self, name :str, value, isconst=False):
         self.name = name
         self.value = value
-        self.isnumber = isnumber
+        self.isconst = isconst
 
 
     def __str__(self):
@@ -101,6 +104,9 @@ def make_rpoland(stream :TokenStream) -> RPolandExpr:
         elif tok.ttype == LAP_IDENTIFIER and tok.value not in operations:
             output_stack.append(tok)
 
+        elif tok.ttype == LAP_STRING:
+            output_stack.append(tok)
+
         i += 1
     
     final = output_stack + operation_stack[::-1]
@@ -111,11 +117,11 @@ def make_rpoland(stream :TokenStream) -> RPolandExpr:
 
 
 def check_func(tok_value):
-    return tok_value in ('cos', 'sin', 'tan', 'log')
+    return tok_value in ('cos', 'sin', 'tan', 'ln', 'lg')
 
 
 def check_cmd(tok_value):
-    return check_func(tok_value) or (tok_value in ('is', 'print'))
+    return check_func(tok_value) or (tok_value in ('is', 'print', 'log'))
 
 
 def unpack_variable(v :Variable):
@@ -151,6 +157,9 @@ def run_rpoland(pstr :list):
             if tok.ttype == LAP_NUMBER:
                 stack.append(Variable('<number>', float(tok.value), True))
 
+            elif tok.ttype == LAP_STRING:
+                stack.append(Variable('<string>', tok.value, True))
+
             elif tok.ttype == LAP_IDENTIFIER and not check_cmd(tok.value):
                 if search_variable(tok.value):
                     v = search_variable(tok.value)
@@ -178,6 +187,9 @@ def run_rpoland(pstr :list):
                        'cos' : lambda x : math.cos(x),
                        'sin' : lambda x : math.sin(x),
                        'tan' : lambda x : math.tan(x),
+                       #'log' : lambda x : math.log(x),
+                       'ln'  : lambda x : math.log(x, math.e),
+                       'lg'  : lambda x : math.log10(x)
                       }.get(tok.value)(x)
 
                 stack.append(Variable('<number>', res, True))
@@ -189,10 +201,10 @@ def run_rpoland(pstr :list):
                     value = stack.pop()
                     name = stack.pop()
                     
-                    if not name.isnumber:
+                    if not name.isconst:
                         name = name.name
                     else:
-                        raise CalcException('E: Cannot define a number')
+                        raise CalcException('E: Cannot define a constant')
                     
                     s = search_variable(name)
                     if s:
@@ -207,9 +219,17 @@ def run_rpoland(pstr :list):
                     print(*l)
                     stack.append(Variable('<number>', 0, True))
 
+
+                if tok.value == 'log':
+                    l = [unpack_variable(check_variable(stack.pop())) for _ in range(2)][::-1]
+                    y = math.log(*l)
+
+                    stack.append(Variable('<number>', float(y), True)) 
             i += 1
     except IndexError:
         raise CalcException('E:Illegal expression!')
+    except (TypeError, ZeroDivisionError) as e:
+        raise CalcException('E: Python: %s' % str(e))
 
     return stack[0].value
 

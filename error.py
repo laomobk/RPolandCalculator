@@ -1,4 +1,5 @@
 import sys
+import os.path
 
 def get_line_from_line_no(lno :int, fp :str):
     '''
@@ -8,6 +9,9 @@ def get_line_from_line_no(lno :int, fp :str):
     '''
     if lno <= 0:
         return '<Illegal line number>'
+
+    if not os.path.exists(fp):
+        return '<NULL>'
     
     tlno = 1
     for ln in open(fp):
