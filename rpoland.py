@@ -16,8 +16,8 @@ operations = {
         'log' : 1,
         'ln' : 1,
         'lg' : 1,
-        'is' : 0,
-        'is_const' : 0,
+        'is' : -1,
+        'is_const' : -1,
         'print' : 0,
         'input' : 0,
         '*' : 2,
@@ -34,7 +34,7 @@ SYS_EXIT = 1
 if not SYS_EXIT:
     sys.exit = lambda x:0
 
-_VERSION = '1.2'
+_VERSION = '1.2.1'
 _WELCOME_STR = '''RPolandCalculator %s  (12 nov, 2019 release)''' % _VERSION
 
 _funcs = ('cos', 'sin', 'tan', 'ln', 'lg')
@@ -66,7 +66,10 @@ localv = [
          Variable('e', math.e, True),
          Variable('__version__', _VERSION, True),
          Variable('pi', math.pi, True),
-         Variable('π', math.pi, True)
+         Variable('π', math.pi, True),
+
+
+         Variable('fuck', 'Watch it!')
         ]
 
 
@@ -143,7 +146,7 @@ def unpack_variable(v :Variable):
         return v
 
 
-def search_variable(vname :str):
+def search_variable(vname :str) -> Variable:
     for v in localv:
         if v.name == vname:
             return v
@@ -161,13 +164,15 @@ def store_var(stack :list, isconst=False):
     value = stack.pop()
     name = stack.pop()
     
-    if not name.isconst:
+    if (not name.isconst) or name.isconst and isconst:
         name = name.name
     else:
         raise CalcException('E: Cannot define a constant')
 
     s = search_variable(name)
     if s:
+        if isconst and not s.isconst:
+            raise CalcException('E: Cannot make a variable constant')
         s.value = value
     else:
         localv.append(Variable(name, value, isconst))
@@ -280,10 +285,14 @@ def run_rpoland(pstr :list):
 
 def run_as_interactive():
     import os
+    import base64 as b64
+
     if os.name != 'nt':
         import readline
 
     print(_WELCOME_STR, '\n')
+
+    err_count = 0
     
     try:
         while True:
@@ -297,9 +306,15 @@ def run_as_interactive():
             try:
                 #print('RPOLAND= ', ' '.join(p.plain_list))
                 rtn = run_rpoland(p.tok_list)
-                if rtn : print('<', rtn)
+                print('<', rtn if rtn else 'undefined')
             except CalcException as e:
                 print(str(e))
+                err_count += 1
+
+                if err_count >= 250:
+                    print(
+                        b64.b64decode(b'Q2FuJ3QgeW91IGZ1Y2tpbmcgdXNlIGEgY2FsY3VsYXRvcj8=').decode())
+                    err_count = 0
     except (EOFError, KeyboardInterrupt):
         pass
 
