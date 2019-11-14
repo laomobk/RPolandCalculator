@@ -1,5 +1,14 @@
 PyCalculator  版本变更日志
 
+--- 1.3 (2019 / 11 / 14):
+	1.使用 'call' 调用一个Python函数
+	2.使用 'load' 加载一个Python模块
+	3.使用 'get'  访问一个Python对象的成员
+	4.使用 'del'  删除一个变量
+	5.使用 'array'创建一个Python list
+	6.速度上的略微提升
+
+
 ---- 1.2.1  (2019 / 11 / 12):
 	1.交互式模式中显示 'undefined'
 	2.bug 修复
