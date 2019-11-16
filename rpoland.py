@@ -6,7 +6,6 @@ import traceback
 from alex import TokenStream, Token, Lex
 from tokentype import *
 
-
 __author__ = 'LaomoBK'
 
 operations = {
@@ -20,6 +19,7 @@ operations = {
         'ln' : 1,
         'lg' : 1,
         'is' : -1,
+        '.' : 0,
         'get' : 0,
         'is_const' : -1,
         'print' : -1,
@@ -44,14 +44,14 @@ SYS_EXIT = 1
 if not SYS_EXIT:
     sys.exit = lambda x:0
 
-_VERSION = '1.3'
-_WELCOME_STR = '''RPolandCalculator %s  (14 nov, 2019 release)''' % _VERSION
+_VERSION = '1.3.1'
+_WELCOME_STR = '''RPolandCalculator %s  (16 nov, 2019 release)''' % _VERSION
 
 _funcs = ('cos', 'sin', 'tan', 'ln', 'lg')
 
 _cmds = ('is', 'print', 'log', 
         'is_const', 'input', 
-        'del', 'array', 'get',
+        'del', 'array', '.', 'get',
         'call', 'load')
 
 _add_mon = (
@@ -146,6 +146,7 @@ localv = [
 
          Variable('Array', import_module('array'), True),
          Variable('Math', import_module('math'), True),
+         Variable('Builtins', import_module('builtins'), True),
 
          Variable('fuck', 'Watch it!')
         ]
@@ -168,11 +169,14 @@ def make_rpoland(stream :TokenStream) -> RPolandExpr:
             operation_stack.append(tok)
 
         elif tok.value in operations and tok.value not in ('(', ')', '{', '}'):
-            if tok.value in _add_mon:
+            if (tok.value in _add_mon) and tok.ttype == LAP_IDENTIFIER:
                 output_stack.append(Token('$', LAP_IDENTIFIER, -1))
 
             t = operation_stack[-1].value \
                     if operation_stack else '<null>'
+
+            if tok.value == '.':
+                tok.ttype = LAP_IDENTIFIER
 
             while operations[t] > operations[tok.value]:
                 pt = operation_stack.pop()
@@ -217,11 +221,12 @@ def make_rpoland(stream :TokenStream) -> RPolandExpr:
     return RPolandExpr(final, final_plain)
 
 
-def check_func(tok_value):
-    return tok_value in _funcs
+def check_func(tok :Token):
+    return tok.value in _funcs and tok.ttype == LAP_IDENTIFIER
 
-def check_cmd(tok_value):
-    return check_func(tok_value) or (tok_value in _cmds)
+
+def check_cmd(tok :Token):
+    return check_func(tok) or (tok.value in _cmds and tok.ttype == LAP_IDENTIFIER)
 
 
 def unpack_variable(v :Variable):
@@ -292,14 +297,14 @@ def run_rpoland(pstr :list):
             elif tok.ttype == LAP_STRING:
                 stack.append(Variable('<string>', tok.value, True))
 
-            elif tok.ttype == LAP_IDENTIFIER and not check_cmd(tok.value):
+            elif tok.ttype == LAP_IDENTIFIER and not check_cmd(tok):
                 if search_variable(tok.value):
                     v = search_variable(tok.value)
                     stack.append(v)
                 else:
                     stack.append(Variable(tok.value, None))
 
-            elif tok.value in operations and not check_cmd(tok.value):
+            elif tok.value in operations and not check_cmd(tok):
                 b = unpack_variable(check_variable(stack.pop()))
                 a = unpack_variable(check_variable(stack.pop()))
                 res = {
@@ -313,7 +318,7 @@ def run_rpoland(pstr :list):
 
                 stack.append(Variable('<number>', res, True))
 
-            elif check_func(tok.value):
+            elif check_func(tok):
                 x = unpack_variable(check_variable(stack.pop()))
                 res = {
                        'cos' : lambda x : math.cos(x),
@@ -326,7 +331,7 @@ def run_rpoland(pstr :list):
 
                 stack.append(Variable('<number>', res, True))
 
-            elif check_cmd(tok.value):
+            elif check_cmd(tok):
                 if tok.value == 'is':
                     store_var(stack)
 
@@ -387,12 +392,15 @@ def run_rpoland(pstr :list):
                         l.append(p)
                     stack.append(Variable('<array>', l[::-1], True))
                 
-                elif tok.value == 'get':
+                elif tok.value in ('.', 'get'):
                     a = stack.pop()
                     s = stack.pop()
 
                     ins = unpack_variable(check_variable(s))
-                    targ = unpack_variable(check_variable(a))
+                    if tok.value == 'get':
+                        targ = unpack_variable(check_variable(a))
+                    else:
+                        targ = a.name
 
                     if not ins:
                         raise CalcException('E: attribute error: \'%s\'' % str(targ))
@@ -423,7 +431,7 @@ def run_rpoland(pstr :list):
                             raise CalcException('E: it needs %s argument(s)!' % f.argc)
 
                     if not hasattr(f, '__call__'):
-                        raise CalcException('E: %s is not callable' % of.name)
+                        raise CalcException('E: %s is not callable' % f.name)
                     
                     try:
                         rtn = f.__call__(*al)
